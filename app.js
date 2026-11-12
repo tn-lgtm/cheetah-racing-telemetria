@@ -57,7 +57,7 @@ function createChart(container,points,sensor,data,height=190){
  const f=sensor.signed?fmtS:fmt;
  container.innerHTML=`<svg class="chart" viewBox="0 0 ${W} ${H}" style="height:${H}px" role="img" aria-label="${esc(sensor.name)}: leitura por ${esc(data.xLabel.toLowerCase())}. ${points.length} leituras válidas.">${lines}${zeroLine}${meanLine}${paths}<line class="cursor-line" y1="${T}" y2="${H-B}" stroke="#a2b8d2" stroke-dasharray="3 3" visibility="hidden"/><circle class="cursor-dot" r="4" fill="${sensor.color}" stroke="#07101e" stroke-width="2" visibility="hidden"/></svg><div class="tooltip" hidden></div>`;
  const svg=container.querySelector('svg'),tip=container.querySelector('.tooltip'),line=container.querySelector('.cursor-line'),dot=container.querySelector('.cursor-dot');
- svg.addEventListener('pointermove',e=>{
+ const show=e=>{
   const pt=new DOMPoint(e.clientX,e.clientY).matrixTransform(svg.getScreenCTM().inverse());
   const target=xmin+(pt.x-L)/(W-L-R)*(xmax-xmin);let low=0,high=points.length-1;
   while(low<high){const mid=(low+high)>>1;if(points[mid].x<target)low=mid+1;else high=mid;}
@@ -66,8 +66,11 @@ function createChart(container,points,sensor,data,height=190){
   dot.setAttribute('cx',x(p.x));dot.setAttribute('cy',y(p.y));dot.setAttribute('visibility','visible');
   tip.textContent=`${fmt(p.x)} ${data.xSuffix} · ${f(p.y)} ${data.unitLabel}`;tip.hidden=false;
   const wrap=container.parentElement.getBoundingClientRect();
-  tip.style.left=Math.max(5,Math.min(e.clientX-wrap.left+12,wrap.width-tip.offsetWidth-8))+'px';tip.style.top='24px';});
- svg.addEventListener('pointerleave',()=>{tip.hidden=true;line.setAttribute('visibility','hidden');dot.setAttribute('visibility','hidden');});
+  tip.style.left=Math.max(5,Math.min(e.clientX-wrap.left+12,wrap.width-tip.offsetWidth-8))+'px';tip.style.top='24px';};
+ const hide=()=>{tip.hidden=true;line.setAttribute('visibility','hidden');dot.setAttribute('visibility','hidden');};
+ svg.addEventListener('pointermove',show);svg.addEventListener('pointerdown',show);   // toque: mostra ao tocar; rolagem vertical continua livre (touch-action: pan-y)
+ svg.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse')hide();});svg.addEventListener('pointercancel',hide);
+ svg.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse')setTimeout(hide,1600);});
 }
 
 /* ───────── cards ───────── */
@@ -275,7 +278,8 @@ function updateChip(){
  $('mode-label').className='mode-label '+(data?(data.demo?'demo':'real'):'');
 }
 function renderActive(){if(activePanel==='curso')renderCurso();else if(activePanel==='celula')renderCelula();else updateChip();}
-function setNav(open){document.body.classList.toggle('nav-open',open);scrim.hidden=!open;menuBtn.setAttribute('aria-expanded',String(open));if(open)$('close-navigation').focus();else if(mobileNav.matches&&sidebar.contains(document.activeElement))menuBtn.focus();}
+function syncInert(){sidebar.inert=mobileNav.matches&&!document.body.classList.contains('nav-open');}
+function setNav(open){document.body.classList.toggle('nav-open',open);syncInert();scrim.hidden=!open;menuBtn.setAttribute('aria-expanded',String(open));if(open)$('close-navigation').focus();else if(mobileNav.matches&&sidebar.contains(document.activeElement))menuBtn.focus();}
 function showPanel(id){
  activePanel=id;const info=panels[id];if(info.team==='suspensao')lastSuspension=id;
  for(const k of Object.keys(panels))$('panel-'+k).hidden=k!==id;
@@ -289,12 +293,12 @@ function showPanel(id){
 }
 menuBtn.addEventListener('click',()=>setNav(true));$('close-navigation').addEventListener('click',()=>setNav(false));scrim.addEventListener('click',()=>setNav(false));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('nav-open'))setNav(false);});
-mobileNav.addEventListener('change',()=>setNav(false));
+mobileNav.addEventListener('change',()=>setNav(false));syncInert();
 for(const key of teams){const group=$('group-'+key);
  group.addEventListener('toggle',()=>{if(group.open)for(const other of teams)if(other!==key)$('group-'+other).open=false;});
- group.querySelector('summary').addEventListener('click',()=>{showPanel(key==='suspensao'?lastSuspension:key);scrollTo({top:0});});}
+ group.querySelector('summary').addEventListener('click',()=>{const id=key==='suspensao'?lastSuspension:key;showPanel(id);scrollTo({top:0});if(!panels[id].imp)setNav(false);});}   // equipes sem sensores: fecha o menu no celular
 for(const id of ['curso','celula'])$('sensor-'+id).addEventListener('click',()=>{showPanel(id);setNav(false);$(panels[id].title).focus({preventScroll:true});scrollTo({top:0});});
-let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(renderActive,150);});
+let resizeTimer,lastW=innerWidth;addEventListener('resize',()=>{if(innerWidth===lastW)return;lastW=innerWidth;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderActive,150);});   // a barra de endereço do celular altera só a altura
 
 showPanel('curso');
 applyZero();
