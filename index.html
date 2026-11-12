@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#071427">
-<meta name="description" content="Análise dos quatro sensores de curso da Cheetah Racing. Importe CSV ou XLSX e visualize gráficos, média, máximo e mínimo por sensor e subequipe.">
+<meta name="description" content="Análise dos quatro sensores de curso da Cheetah Racing. Importe CSV e visualize gráficos, média, máximo e mínimo por sensor e subequipe.">
 <title>Cheetah Racing · Análise de dados</title>
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="stylesheet" href="style.css">
@@ -31,9 +31,10 @@
       <p class="nav-caption">SUBEQUIPES</p>
 
       <details class="team-group" id="group-suspensao" open>
-        <summary><span class="team-name"><i class="team-dot"></i>Suspensão</span><span class="team-badge">1</span><span class="chevron" aria-hidden="true"></span></summary>
+        <summary><span class="team-name"><i class="team-dot"></i>Suspensão</span><span class="team-badge">2</span><span class="chevron" aria-hidden="true"></span></summary>
         <div class="sensor-options">
           <button id="sensor-curso" aria-current="page"><span>Sensor de curso</span><small>4 posições · DE / DD / TE / TD</small></button>
+          <button id="sensor-celula"><span>Célula de carga</span><small>1 canal · KG / N / bruto</small></button>
         </div>
       </details>
 
@@ -73,7 +74,7 @@
       </div>
 
       <!-- Suspensão · sensor de curso -->
-      <section id="panel-suspensao" aria-label="Suspensão: sensor de curso">
+      <section id="panel-curso" aria-label="Suspensão: sensor de curso">
         <div class="sensor-topic">
           <div><span class="topic-label">SUSPENSÃO / SENSOR</span><h2 id="sensor-title" tabindex="-1">Sensor de curso</h2></div>
           <span class="topic-count">4 posições · DE / DD / TE / TD</span>
@@ -84,7 +85,7 @@
             <span class="step-number">01</span>
             <div>
               <h3 id="import-title">Importar sessão</h3>
-              <p>Arraste seu CSV ou XLSX, ou selecione um arquivo para começar.</p>
+              <p>Arraste seu arquivo CSV ou selecione-o para começar.</p>
               <div class="import-links">
                 <button class="text-button" id="template">Baixar modelo CSV <span aria-hidden="true">↗</span></button>
                 <button class="text-button" id="demo">Explorar demonstração</button>
@@ -93,19 +94,13 @@
           </div>
           <div id="dropzone" class="dropzone">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>
-            <div><strong>Um arquivo. Quatro sensores.</strong><small>CSV / XLSX · até 20 MB · processamento local</small></div>
+            <div><strong>Um arquivo. Quatro sensores.</strong><small>CSV · até 20 MB · processamento local</small></div>
             <button class="primary-button" id="upload">Selecionar arquivo</button>
-            <input type="file" id="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+            <input type="file" id="file" accept=".csv,text/csv" hidden>
           </div>
         </section>
 
         <p id="message" class="message" role="status" hidden></p>
-
-        <div id="sheet-picker" class="sheet-picker" hidden>
-          <label for="worksheet">Planilha do Excel</label>
-          <select id="worksheet"></select>
-          <p>Selecione a planilha que contém as leituras. A primeira linha preenchida deve conter os nomes das colunas.</p>
-        </div>
 
         <section id="mapping" class="mapping" hidden aria-labelledby="mapping-title">
           <h3 id="mapping-title">Confira as colunas do arquivo</h3>
@@ -127,8 +122,35 @@
           </div>
           <div id="overview" class="overview"></div>
 
+          <section class="zero-panel" aria-labelledby="zero-title">
+            <div class="section-heading">
+              <div><span class="step-number">03</span><h3 id="zero-title">Ponto zero</h3></div>
+              <div class="seg" role="group" aria-label="Referência dos valores">
+                <button id="zero-mode-rel" aria-pressed="true">Relativo ao zero</button>
+                <button id="zero-mode-raw" aria-pressed="false">Valor do arquivo</button>
+              </div>
+            </div>
+            <p class="zero-intro">Informe o valor registrado com o piloto dentro do carro. Acima dele o curso fica positivo; abaixo, negativo. O arquivo original não é alterado.</p>
+            <div class="zero-grid">
+              <fieldset class="zero-box">
+                <legend>Digitar o zero de cada roda <span id="zero-unit-label">(mm)</span></legend>
+                <div class="zero-inputs" id="zero-inputs"></div>
+              </fieldset>
+              <fieldset class="zero-box">
+                <legend>Ou usar uma janela da sessão</legend>
+                <p>Intervalo em que o piloto estava sentado e o carro parado. O zero de cada roda é a média desse trecho.</p>
+                <div class="zero-window">
+                  <label>Início <span class="unit-hint" id="zw-unit">(s)</span><input id="zw-start" inputmode="decimal" placeholder="início" autocomplete="off"></label>
+                  <label>Fim <input id="zw-end" inputmode="decimal" placeholder="fim" autocomplete="off"></label>
+                  <button id="zw-apply" class="secondary-button">Usar média da janela</button>
+                </div>
+              </fieldset>
+            </div>
+            <div class="zero-foot"><p id="zero-status" class="zero-status" role="status"></p><button id="zero-clear" class="text-button">Limpar zeros</button></div>
+          </section>
+
           <div class="section-heading section-heading--spaced">
-            <div><span class="step-number">03</span><h3>Análise por sensor</h3></div>
+            <div><span class="step-number">04</span><h3>Análise por sensor</h3></div>
           </div>
           <div class="cards" id="cards"></div>
         </section>
@@ -137,9 +159,71 @@
           <summary>Como os valores são calculados <span aria-hidden="true">+</span></summary>
           <div>
             <p><b>Média:</b> soma das leituras válidas dividida pela quantidade de leituras. <b>Máximo registrado:</b> maior leitura válida. <b>Mínimo registrado:</b> menor leitura válida.</p>
-            <p>Os indicadores usam todas as leituras válidas da sessão, inclusive os extremos. Valores vazios ou inválidos são desconsiderados por sensor. Nenhum filtro ou conversão de calibração é aplicado. Gráficos longos preservam extremos ao reduzir os pontos exibidos.</p>
-            <p>Formatos aceitos: CSV e XLSX. Cabeçalhos sugeridos: tempo_s, curso_DE_mm, curso_DD_mm, curso_TE_mm, curso_TD_mm. No Excel, escolha a planilha com os dados; a primeira linha preenchida deve conter os cabeçalhos. Fórmulas precisam ter resultados salvos pelo Excel ou ser convertidas em valores.</p>
+            <p>Os indicadores usam todas as leituras válidas da sessão, inclusive os extremos. Valores vazios ou inválidos são desconsiderados por sensor. Nenhum filtro ou conversão de calibração é aplicado; o ponto zero, quando definido, apenas desloca os valores (valor − zero). Gráficos longos preservam extremos ao reduzir os pontos exibidos.</p>
+            <p>Formato aceito: CSV. Cabeçalhos sugeridos: tempo_s, curso_DE_mm, curso_DD_mm, curso_TE_mm, curso_TD_mm. Se o arquivo vier do Excel, salve-o como CSV.</p>
             <p>No CSV, são aceitos ponto e vírgula, tabulação e decimais com vírgula. Sem tempo, o eixo horizontal usa o número da amostra. Os arquivos são lidos no seu navegador e não são enviados a um servidor.</p>
+          </div>
+        </details>
+      </section>
+
+      <!-- Suspensão · célula de carga -->
+      <section id="panel-celula" aria-label="Suspensão: célula de carga" hidden>
+        <div class="sensor-topic">
+          <div><span class="topic-label">SUSPENSÃO / SENSOR</span><h2 id="celula-title" tabindex="-1">Célula de carga</h2></div>
+          <span class="topic-count">1 canal · KG / N / bruto</span>
+        </div>
+
+        <section class="import-panel" aria-labelledby="c-import-title">
+          <div class="import-copy">
+            <span class="step-number">01</span>
+            <div>
+              <h3 id="c-import-title">Importar sessão</h3>
+              <p>Arraste seu arquivo CSV ou selecione-o para começar. Os valores devem estar em KG.</p>
+              <div class="import-links">
+                <button class="text-button" id="c-template">Baixar modelo CSV <span aria-hidden="true">↗</span></button>
+                <button class="text-button" id="c-demo">Explorar demonstração</button>
+              </div>
+            </div>
+          </div>
+          <div id="c-dropzone" class="dropzone">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>
+            <div><strong>Um arquivo. Um sensor.</strong><small>CSV · até 20 MB · processamento local</small></div>
+            <button class="primary-button" id="c-upload">Selecionar arquivo</button>
+            <input type="file" id="c-file" accept=".csv,text/csv" hidden>
+          </div>
+        </section>
+
+        <p id="c-message" class="message" role="status" hidden></p>
+
+        <section id="c-mapping" class="mapping" hidden aria-labelledby="c-mapping-title">
+          <h3 id="c-mapping-title">Confira as colunas do arquivo</h3>
+          <p>Associe a leitura da célula de carga à sua coluna. Valores vazios ou inválidos serão desconsiderados.</p>
+          <div class="map-fields map-fields--2" id="c-map-fields"></div>
+          <div class="map-actions">
+            <button id="c-apply" class="primary-button">Analisar dados <span aria-hidden="true">→</span></button>
+            <button id="c-cancel" class="secondary-button">Cancelar</button>
+          </div>
+        </section>
+
+        <section class="analysis-section" aria-labelledby="c-analysis-title">
+          <div class="section-heading">
+            <div><span class="step-number">02</span><h3 id="c-analysis-title">Análise da célula de carga</h3></div>
+            <div class="seg" role="group" aria-label="Unidade de exibição">
+              <button id="c-unit-kg" data-unit="kg" aria-pressed="true">KG</button>
+              <button id="c-unit-n" data-unit="n" aria-pressed="false">N</button>
+              <button id="c-unit-raw" data-unit="raw" aria-pressed="false">Bruto</button>
+            </div>
+          </div>
+          <div id="c-overview" class="kpis kpis--row"></div>
+          <div class="cards cards--single" id="c-cards"></div>
+        </section>
+
+        <details class="method">
+          <summary>Como os valores são calculados <span aria-hidden="true">+</span></summary>
+          <div>
+            <p><b>Média, máximo e mínimo</b> usam todas as leituras válidas da sessão. Valores vazios ou inválidos são desconsiderados.</p>
+            <p>O arquivo deve trazer os valores em <b>KG</b>. Em <b>N</b>, cada leitura é multiplicada por 9,80665. <b>Bruto</b> mostra os números exatamente como estão no arquivo.</p>
+            <p>Formato aceito: CSV, com ponto e vírgula, tabulação ou vírgula decimal. Cabeçalhos sugeridos: tempo_s, carga_kg. Sem coluna de tempo, o eixo horizontal usa o número da amostra. Os arquivos são lidos no seu navegador e não são enviados a um servidor.</p>
           </div>
         </details>
       </section>
@@ -161,7 +245,6 @@
   </div>
 </div>
 
-<script src="vendor/xlsx.full.min.js"></script>
 <script src="analysis.js"></script>
 <script src="app.js"></script>
 </body>
