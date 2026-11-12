@@ -25,15 +25,25 @@ function parseCSV(text){
 }
 function number(value){if(value==null||String(value).trim()==='')return null;const s=String(value).trim().replace(',','.');if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(s))return null;const n=Number(s);return Number.isFinite(n)?n:null;}
 function stats(values){
- if(!values.length)return null;let mean=0,m2=0,min=Infinity,max=-Infinity;
- values.forEach((x,i)=>{const delta=x-mean;mean+=delta/(i+1);m2+=delta*(x-mean);min=Math.min(min,x);max=Math.max(max,x);});
- const sorted=[...values].sort((a,b)=>a-b),n=values.length,mid=Math.floor(n/2),median=n%2?sorted[mid]:sorted[mid-1]/2+sorted[mid]/2;
- const sd=n>1?Math.sqrt(Math.max(0,m2)/(n-1)):null;
- const cv=sd!==null&&mean!==0?sd/Math.abs(mean)*100:null;
- if(!Number.isFinite(mean)||!Number.isFinite(median)||!Number.isFinite(m2)||(cv!==null&&!Number.isFinite(cv)))throw Error('Valores numéricos muito grandes para calcular com segurança. Verifique as unidades e o CSV.');
- return {n,mean,median,sd,cv,min,max};
+ if(!values.length)return null;let mean=0,min=Infinity,max=-Infinity;
+ values.forEach((x,i)=>{mean+=(x-mean)/(i+1);min=Math.min(min,x);max=Math.max(max,x);});
+ if(!Number.isFinite(mean))throw Error('Valores numéricos muito grandes para calcular com segurança. Verifique as unidades.');
+ return {n:values.length,mean,min,max};
+}
+function parseWorksheet(sheet,XLSX){
+ if(!sheet||!sheet['!ref'])throw Error('Esta planilha está vazia. Selecione outra planilha.');
+ const range=XLSX.utils.decode_range(sheet['!ref']);
+ if((range.e.r-range.s.r+1)*(range.e.c-range.s.c+1)>2000000)throw Error('Esta planilha é muito grande. Remova linhas e colunas excedentes ou divida a sessão.');
+ const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:'',blankrows:false});
+ if(rows.length<2)throw Error('A planilha precisa de cabeçalhos e pelo menos uma linha de dados.');
+ const rawHeaders=rows.shift();while(rawHeaders.length&&String(rawHeaders[rawHeaders.length-1]).trim()==='')rawHeaders.pop();
+ const headers=rawHeaders.map(h=>String(h).trim());
+ if(headers.length<4)throw Error('São necessárias pelo menos quatro colunas: uma para cada sensor.');
+ if(headers.some(h=>!h)||new Set(headers).size!==headers.length)throw Error('Use um nome único e não vazio para cada coluna na primeira linha preenchida.');
+ if(rows.some(r=>r.slice(headers.length).some(v=>v!==''&&v!==null)))throw Error('Há dados em colunas sem cabeçalho. Preencha os nomes das colunas.');
+ return {headers,rows:rows.map(r=>headers.map((_,i)=>r[i]??''))};
 }
 function thin(points,limit=700){if(points.length<=limit)return points;const out=[points[0]],size=Math.ceil((points.length-2)/Math.floor((limit-2)/2));for(let i=1;i<points.length-1;i+=size){let lo=i,hi=i;for(let j=i;j<Math.min(i+size,points.length-1);j++){if(points[j].y<points[lo].y)lo=j;if(points[j].y>points[hi].y)hi=j;}for(const k of [...new Set([lo,hi])].sort((a,b)=>a-b))out.push(points[k]);}out.push(points[points.length-1]);return out;}
-root.CheetahAnalysis={parseCSV,number,stats,thin};
+root.CheetahAnalysis={parseCSV,parseWorksheet,number,stats,thin};
 if(typeof module!=='undefined')module.exports=root.CheetahAnalysis;
 })(typeof window!=='undefined'?window:globalThis);
